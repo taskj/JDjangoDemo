@@ -1,12 +1,13 @@
 from django.shortcuts import render,redirect,reverse
-from apps.user.models import User
+from apps.user.models import User,Address
 from django.views.generic import View
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from itsdangerous import SignatureExpired
 from django.conf import settings
 from django.http import HttpResponse
 from celery_tasks.tasks import send_register_active_email
-from django.contrib.auth import authenticate,login
+from django.contrib.auth import authenticate,login,logout
+from utils.mixin import LoginRequireMixin
 
 class RegisterView(View):
     '''注册'''
@@ -125,24 +126,74 @@ class LoginView(View):
             return render(request,'login.html',{'error':'用户名或密码错误'})
         #返回应答
 
+#/user/logout
+class LogoutView(View):
+    '''退出登录'''
+    def get(self,request):
+        '''清除用户session信息'''
+        logout(request)
+        #跳转到首页
+        return redirect(reverse('goods:index'))
 
 #/user/order
-class UserInfoView(View):
+class UserInfoView(LoginRequireMixin,View):
     '''用户中心-信息页'''
     def get(self,request):
         '''显示'''
-        return render(request,'user_center_info.html')
+        #page = 'user'
+        #request.user.is_authenticated()
+        #除了用户给模板文件传递变量外，django也会把request.user传给模板
+        #获取用户个人信息
+        user = request.user
+        address = Address.objects.get(user=user.id)
+        #获取用户历史浏览记录
+        return render(request,'user_center_info.html',{'page':'user','address':address,'username':user.username})
 
 #/user/order
-class UserOrderView(View):
+class UserOrderView(LoginRequireMixin,View):
     '''用户中心-订单页'''
     def get(self,request):
-        return render(request,'user_center_order.html')
+        return render(request,'user_center_order.html',{'page':'order'})
 
 #/user/address
-class AddressView(View):
+class AddressView(LoginRequireMixin,View):
     '''用户中心-地址页'''
     def get(self,request):
         '''显示'''
-        return render(request,'user_center_site.html')
+        user = request.user
+        try:
+            address = Address.objects.get(user=user,is_default=True)
+        except Address.DoesNotExist:
+            #不存在默认的收获地址
+            address = None
+        return render(request,'user_center_site.html',{'page':'address','address':address})
 
+    def post(self,request):
+        '''地址的添加'''
+        #接收收据
+        receiver = request.POST.get('receiver')
+        addr = request.POST.get('addr')
+        zip_code = request.POST.get('zip_code')
+        phone = request.POST.get('phone')
+        #校验数据
+        if not all([receiver,addr,phone]):
+            return render(request,'user_center_site.html',{'errmsg':'数据不完整'})
+        #业务处理
+        #获取登录用户对应的user对象
+        user = request.user
+        try:
+            address = Address.objects.get(user=user,is_default=True)
+        except Address.DoesNotExist:
+            #不存在默认的收获地址
+            address = None
+
+        if address:
+            is_default = False
+        else:
+            is_default = True
+            #返回应答
+
+        #添加地址
+        Address.objects.create(user=user,receiver=receiver,addr=addr,zip_code=zip_code,phone=phone,is_default=is_default)
+
+        return redirect(reverse('user:address'))
