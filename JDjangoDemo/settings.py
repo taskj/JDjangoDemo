@@ -113,7 +113,6 @@ USE_L10N = True
 
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
@@ -134,3 +133,18 @@ EMAIL_PORT = 25
 EMAIL_HOST_USER = "taskj141@163.com"
 EMAIL_HOST_PASSWORD = "FSGCLZBRCRTACKYH"
 EMAIL_FROM = "taskj<taskj141@163.com>"
+
+#配置缓存
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://192.168.229.132:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+#配置SESSION
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
